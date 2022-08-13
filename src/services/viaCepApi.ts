@@ -1,7 +1,7 @@
-import axios from 'axios';
+import api from './api';
 
 export async function getAddressByCEP(value: string) {
-  const response = await axios.get(`http://viacep.com.br/ws/${value}/json/`);
+  const response = await api.post(`/viacep`, { cep: value });
 
   return response.data;
 }
