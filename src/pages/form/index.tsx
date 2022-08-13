@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
 import { Button, Card, Col, Form, Row } from 'react-bootstrap';
-import { useNavigate } from 'react-router-dom';
 import { mask } from './cpfCnpjMask';
 import { getAddressByCEP } from '../../services/viaCepApi';
 import { cpf, cnpj } from 'cpf-cnpj-validator';
+import { newCustomer } from '../../services/customerApi';
+import { AddressType, CustomerType } from '../../utils/types';
 
 export default function ClientForm() {
   const [name, setName] = useState('');
   const [cpfCnpj, setCpfCnpj] = useState('');
   const [email, setEmail] = useState('');
-  const [birthday, setBirthday] = useState('');
+  const [amount, setAmount] = useState('');
   const [typeMask, setMask] = useState('');
 
   const [cep, setCep] = useState('');
-  const [address, setAddress] = useState('');
+  const [street, setStreet] = useState('');
   const [district, setDistrict] = useState('');
   const [number, setNumber] = useState('');
   const [city, setCity] = useState('');
@@ -28,12 +29,10 @@ export default function ClientForm() {
     const data = await getAddressByCEP(valueFiltered);
 
     setDistrict(data.bairro);
-    setAddress(data.logradouro);
+    setStreet(data.logradouro);
     setCity(data.localidade);
     setUf(data.uf);
   }
-
-  const navigate = useNavigate();
 
   function handleMask(value: string) {
     setCpfCnpj(value);
@@ -41,7 +40,7 @@ export default function ClientForm() {
     setMask(mask(value));
   }
 
-  async function handleSubmit(e: any) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     if (cpfCnpj.length === 14) {
@@ -51,6 +50,57 @@ export default function ClientForm() {
       const isValidDocument = cnpj.isValid(cpfCnpj);
       !isValidDocument && alert('CNPJ inválido');
     }
+
+    const customer: CustomerType = {
+      name,
+      document: cpfCnpj,
+      email,
+      amount: parseFloat(amount) * 100,
+      phone,
+    };
+
+    const address: AddressType = {
+      cep,
+      street,
+      district,
+      number,
+      uf,
+      city,
+    };
+
+    try {
+      await newCustomer({ customer, address });
+      whatsappMessage();
+    } catch (error) {
+      console.log('deu ruim');
+    }
+  }
+
+  function whatsappMessage() {
+    const message = `
+    *DADOS - RECIBO*
+
+*NOME:* ${name}
+*CPF / CNPJ:* ${cpfCnpj}
+
+*END:* ${street}, ${
+      number ? 'Nº ' + number + ',' : ''
+    } ${district}, ${city} - ${uf}, CEP: ${cep.slice(0, 5)}-${cep.slice(5, 8)}
+
+*EMAIL:* ${email}
+
+*VALOR:* R$ ${Number(amount).toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+    })}
+
+*TEL:* (${phone[0] + phone[1]}) ${phone.slice(2, 7)}-${phone.slice(7, 11)}`;
+
+    const messageEncoded = encodeURIComponent(message);
+    const phoneNumber = process.env.REACT_APP_PHONE;
+
+    const whatsapp = `https://wa.me/${phoneNumber}?text=${messageEncoded}`;
+
+    window.open(whatsapp);
   }
 
   return (
@@ -75,7 +125,7 @@ export default function ClientForm() {
                   type='text'
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder='Digite aqui...'
+                  placeholder='Digite aqui seu nome'
                 />
               </Col>
               <Col xs md>
@@ -97,15 +147,16 @@ export default function ClientForm() {
                   type='email'
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder='Digite aqui...'
+                  placeholder='email@email.com'
                 />
               </Col>
               <Col xs md>
-                <Form.Label>Nascimento</Form.Label>
+                <Form.Label>Valor</Form.Label>
                 <Form.Control
-                  type='date'
-                  value={birthday}
-                  onChange={(e) => setBirthday(e.target.value)}
+                  type='number'
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder='450.000,00'
                 />
               </Col>
             </Row>
@@ -134,9 +185,9 @@ export default function ClientForm() {
             <Form.Label>Logradouro</Form.Label>
             <Form.Control
               type='text'
-              value={address}
-              defaultValue={address}
-              onChange={(e) => setAddress(e.target.value)}
+              value={street}
+              defaultValue={street}
+              onChange={(e) => setStreet(e.target.value)}
               placeholder='Endereço...'
             />
 
